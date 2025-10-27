@@ -182,8 +182,9 @@ Best for: Cloud-native deployments, Advanced orchestration, Multi-region
 
 ### Deployment Steps
 
-1. **Create Namespace**
+1. **Create Namespace and ConfigMap**
    ```bash
+   kubectl create namespace filemover
    kubectl apply -f infrastructure/k8s/configmap.yaml
    ```
 
@@ -204,15 +205,20 @@ Best for: Cloud-native deployments, Advanced orchestration, Multi-region
    ```
 
 3. **Deploy Infrastructure Services**
+   
+   Note: For production, deploy MariaDB, Redis, and RabbitMQ using Helm charts or cloud-managed services:
+   
    ```bash
-   # MariaDB
-   kubectl apply -f infrastructure/k8s/mariadb-deployment.yaml
+   # Using Helm for MariaDB
+   helm install mariadb bitnami/mariadb --namespace filemover
    
-   # Redis
-   kubectl apply -f infrastructure/k8s/redis-deployment.yaml
+   # Using Helm for Redis
+   helm install redis bitnami/redis --namespace filemover
    
-   # RabbitMQ
-   kubectl apply -f infrastructure/k8s/rabbitmq-deployment.yaml
+   # Using Helm for RabbitMQ
+   helm install rabbitmq bitnami/rabbitmq --namespace filemover
+   
+   # Or use cloud-managed services (Azure Database, AWS RDS, etc.)
    ```
 
 4. **Deploy Application Services**
@@ -363,13 +369,15 @@ alerting:
 ### Elastic Stack (Optional)
 
 1. **Deploy Elasticsearch**
+   
+   Use Elastic Cloud or deploy using Helm:
    ```bash
-   kubectl apply -f infrastructure/k8s/elasticsearch-deployment.yaml
+   helm install elasticsearch elastic/elasticsearch --namespace filemover
    ```
 
 2. **Deploy Kibana**
    ```bash
-   kubectl apply -f infrastructure/k8s/kibana-deployment.yaml
+   helm install kibana elastic/kibana --namespace filemover
    ```
 
 3. **Configure APM**
