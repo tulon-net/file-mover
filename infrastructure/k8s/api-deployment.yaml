@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filemover-api
+  namespace: filemover
+  labels:
+    app: filemover-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: filemover-api
+  template:
+    metadata:
+      labels:
+        app: filemover-api
+    spec:
+      containers:
+      - name: api
+        image: filemover-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: ASPNETCORE_ENVIRONMENT
+        - name: ConnectionStrings__MariaDb
+          valueFrom:
+            secretKeyRef:
+              name: filemover-secrets
+              key: mariadb-connection
+        - name: ConnectionStrings__Redis
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: ConnectionStrings__Redis
+        - name: RabbitMQ__Host
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: RabbitMQ__Host
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: filemover-secrets
+              key: rabbitmq-password
+        - name: OpenTelemetry__Endpoint
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: OpenTelemetry__Endpoint
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filemover-api
+  namespace: filemover
+spec:
+  selector:
+    app: filemover-api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: LoadBalancer

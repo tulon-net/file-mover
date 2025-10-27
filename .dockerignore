@@ -1,0 +1,40 @@
+# Ignore build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# Ignore test results
+TestResults/
+**/TestResults/
+
+# Ignore IDE folders
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Ignore .NET temporary files
+*.DotSettings.user
+
+# Ignore data folders
+data/
+**/data/
+
+# Ignore environment files
+.env
+.env.local
+.env.*.local
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Keep documentation
+!docs/
+!README.md
+!LICENSE

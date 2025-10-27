@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filemover-worker-generate
+  namespace: filemover
+  labels:
+    app: filemover-worker-generate
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: filemover-worker-generate
+  template:
+    metadata:
+      labels:
+        app: filemover-worker-generate
+    spec:
+      containers:
+      - name: worker
+        image: filemover-worker-generate:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DOTNET_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: DOTNET_ENVIRONMENT
+        - name: ConnectionStrings__Redis
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: ConnectionStrings__Redis
+        - name: RabbitMQ__Host
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: RabbitMQ__Host
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: filemover-secrets
+              key: rabbitmq-password
+        - name: RabbitMQ__QueueName
+          value: "GenerateFile"
+        - name: OpenTelemetry__Endpoint
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: OpenTelemetry__Endpoint
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: filemover-data-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filemover-worker-send
+  namespace: filemover
+  labels:
+    app: filemover-worker-send
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: filemover-worker-send
+  template:
+    metadata:
+      labels:
+        app: filemover-worker-send
+    spec:
+      containers:
+      - name: worker
+        image: filemover-worker-send:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DOTNET_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: DOTNET_ENVIRONMENT
+        - name: ConnectionStrings__Redis
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: ConnectionStrings__Redis
+        - name: RabbitMQ__Host
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: RabbitMQ__Host
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: filemover-secrets
+              key: rabbitmq-password
+        - name: RabbitMQ__QueueName
+          value: "SendFile"
+        - name: Secrets__Provider
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: Secrets__Provider
+        - name: OpenTelemetry__Endpoint
+          valueFrom:
+            configMapKeyRef:
+              name: filemover-config
+              key: OpenTelemetry__Endpoint
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: filemover-data-pvc
