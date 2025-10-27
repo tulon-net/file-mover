@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: filemover
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filemover-config
+  namespace: filemover
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  DOTNET_ENVIRONMENT: "Production"
+  RabbitMQ__Host: "rabbitmq"
+  RabbitMQ__Port: "5672"
+  RabbitMQ__Username: "admin"
+  ConnectionStrings__Redis: "redis:6379"
+  Secrets__Provider: "AzureKeyVault"
+  OpenTelemetry__Endpoint: "http://otel-collector:4317"

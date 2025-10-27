@@ -1,0 +1,204 @@
+version: '3.8'
+
+services:
+  # MariaDB - Schedule configuration storage
+  mariadb:
+    image: mariadb:11.2
+    container_name: filemover-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:-filemover}
+      MYSQL_USER: ${MARIADB_USER:-filemover}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-filemoverpassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - filemover-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Active jobs tracking
+  redis:
+    image: redis:7.2-alpine
+    container_name: filemover-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - filemover-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # RabbitMQ - Message queue for GenerateFile and SendFile
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: filemover-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-adminpassword}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - filemover-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FileMover API - Schedule management
+  api:
+    build:
+      context: .
+      dockerfile: src/FileMover.Api/Dockerfile
+    container_name: filemover-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT:-Development}
+      - ConnectionStrings__MariaDb=Server=mariadb;Port=3306;Database=${MARIADB_DATABASE:-filemover};User=${MARIADB_USER:-filemover};Password=${MARIADB_PASSWORD:-filemoverpassword};
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-adminpassword}
+      - Secrets__Provider=${SECRETS_PROVIDER:-AzureKeyVault}
+      - OpenTelemetry__Endpoint=${OTEL_ENDPOINT:-http://otel-collector:4317}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - filemover-network
+    volumes:
+      - ./data:/app/data
+
+  # Worker - Generate File
+  worker-generate:
+    build:
+      context: .
+      dockerfile: src/FileMover.Worker.GenerateFile/Dockerfile
+    container_name: filemover-worker-generate
+    environment:
+      - DOTNET_ENVIRONMENT=${ENVIRONMENT:-Development}
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-adminpassword}
+      - RabbitMQ__QueueName=GenerateFile
+      - OpenTelemetry__Endpoint=${OTEL_ENDPOINT:-http://otel-collector:4317}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - filemover-network
+    volumes:
+      - ./data:/app/data
+    deploy:
+      replicas: 2
+
+  # Worker - Send File
+  worker-send:
+    build:
+      context: .
+      dockerfile: src/FileMover.Worker.SendFile/Dockerfile
+    container_name: filemover-worker-send
+    environment:
+      - DOTNET_ENVIRONMENT=${ENVIRONMENT:-Development}
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD:-adminpassword}
+      - RabbitMQ__QueueName=SendFile
+      - Secrets__Provider=${SECRETS_PROVIDER:-AzureKeyVault}
+      - OpenTelemetry__Endpoint=${OTEL_ENDPOINT:-http://otel-collector:4317}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - filemover-network
+    volumes:
+      - ./data:/app/data
+    deploy:
+      replicas: 2
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: filemover-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./infrastructure/observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+    networks:
+      - filemover-network
+
+  # Prometheus - Metrics storage
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: filemover-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - filemover-network
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: filemover-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infrastructure/observability/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - filemover-network
+
+networks:
+  filemover-network:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
