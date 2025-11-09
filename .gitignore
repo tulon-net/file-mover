@@ -44,6 +44,8 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+dotnet-install.sh
+dotnet-install.ps1
 
 # MSBuild Binary and Structured Log
 *.binlog
