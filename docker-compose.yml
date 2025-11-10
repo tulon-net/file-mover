@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MariaDB - Schedule configuration storage
   mariadb:
@@ -94,7 +92,6 @@ services:
     build:
       context: .
       dockerfile: src/FileMover.Worker.GenerateFile/Dockerfile
-    container_name: filemover-worker-generate
     environment:
       - DOTNET_ENVIRONMENT=${ENVIRONMENT:-Development}
       - ConnectionStrings__Redis=redis:6379
@@ -121,7 +118,6 @@ services:
     build:
       context: .
       dockerfile: src/FileMover.Worker.SendFile/Dockerfile
-    container_name: filemover-worker-send
     environment:
       - DOTNET_ENVIRONMENT=${ENVIRONMENT:-Development}
       - ConnectionStrings__Redis=redis:6379

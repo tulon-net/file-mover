@@ -58,3 +58,10 @@ dotnet-install.ps1
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Copilot
+.copilot/
+.github/instructions/notes
+
+# External solutions
+.external/
