@@ -122,7 +122,17 @@ public class CronValidator : ICronValidator
         
         // Get next occurrence in user timezone (Cronos works with DateTimeOffset)
         var fromOffset = new DateTimeOffset(fromInUserTz.ToDateTimeUnspecified(), tz.GetUtcOffset(Instant.FromDateTimeUtc(from)));
-        var nextInUserTz = cron.GetNextOccurrence(fromOffset, tz.ToTimeZoneInfo());
+        // Note: tz.ToTimeZoneInfo() may fail for IANA timezones without Windows mappings.
+        DateTimeOffset? nextInUserTz = null;
+        try
+        {
+            nextInUserTz = cron.GetNextOccurrence(fromOffset, tz.ToTimeZoneInfo());
+        }
+        catch (NodaTime.TimeZones.DateTimeZoneConversionException)
+        {
+            // Unsupported timezone conversion; cannot calculate next occurrence.
+            return null;
+        }
         
         if (nextInUserTz == null)
             return null;
