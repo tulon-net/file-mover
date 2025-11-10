@@ -98,7 +98,7 @@ SDD emphasizes:
 - **Purpose**: Persistent storage for schedule configuration, FTP servers, users, job history
 - **Schema**:
   - **Schedules** table: ID, Name, CronExpression, SourcePath, DestinationPath, IsActive, CreatedBy, CreatedAt, UpdatedAt
-  - **FtpServers** table: ID, Name, Host, Port, Username, EncryptedPassword (local mode) or KeyVaultSecretName (Azure mode), Protocol (FTP/FTPS/SFTP)
+  - **FtpServers** table: ID, Name, Host, Port, Username, EncryptedPassword (nullable), KeyVaultSecretName (nullable), Protocol (FTP/FTPS/SFTP)
   - **ScheduleFtpServers** table: ScheduleId, FtpServerId (many-to-many join table)
   - **Users** table: ID, Username, PasswordHash (local mode only), Email, Role (Admin/User), CreatedAt, LastLogin
   - **JobHistory** table: ID, ScheduleId, FtpServerId, JobId (Redis key), Status, StartTime, EndTime, FileSize, ErrorMessage
