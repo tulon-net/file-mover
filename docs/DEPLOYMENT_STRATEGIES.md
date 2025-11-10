@@ -133,6 +133,12 @@ File Mover supports dual deployment architectures to accommodate different opera
 }
 ```
 
+**JWT Secret Key Requirements**:
+- **Minimum length**: 256 bits (32 bytes) for HS256 algorithm, 384 bits (48 bytes) for HS384, or 512 bits (64 bytes) for HS512.
+- **Generation**: Use a cryptographically secure random generator (e.g., `openssl rand -base64 32` for HS256).
+- **Storage**: Store in environment variable or secure configuration (never commit to repository).
+- **Rotation**: Rotate periodically (e.g., every 90 days); implement gradual rollover to avoid service disruption during rotation.
+
 ### Deployment Architecture
 ```
 ┌──────────────┐
