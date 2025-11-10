@@ -93,15 +93,17 @@ public class CronValidator : ICronValidator
             return ValidationResult.Fail("Invalid cron expression format. Use standard 5-field format: 'minute hour day month dayOfWeek'.");
         }
         
-        // 2. Validate timezone
+        // 2. Validate timezone (must happen before calling GetNextOccurrence to avoid circular dependency)
         var tzdb = DateTimeZoneProviders.Tzdb;
-        if (tzdb.GetZoneOrNull(timeZone) == null)
+        var tz = tzdb.GetZoneOrNull(timeZone);
+        if (tz == null)
         {
             return ValidationResult.Fail($"Invalid timezone: '{timeZone}'. Use IANA timezone identifier (e.g., 'Europe/Warsaw').");
         }
         
         // 3. Check if cron produces at least one occurrence in next 2 years
-        var next = GetNextOccurrence(cronExpression, timeZone, DateTime.UtcNow);
+        // Pass pre-validated timezone and parsed cron to avoid re-parsing and exceptions
+        var next = GetNextOccurrence(parsedCron, tz, DateTime.UtcNow);
         if (next == null || next.Value > DateTime.UtcNow.AddYears(2))
         {
             return ValidationResult.Fail("Cron expression does not produce valid occurrences in reasonable timeframe.");
@@ -112,12 +114,31 @@ public class CronValidator : ICronValidator
     
     public DateTime? GetNextOccurrence(string cronExpression, string timeZone, DateTime? fromUtc = null)
     {
-        var cron = CronExpression.Parse(cronExpression, CronFormat.Standard);
+        // Parse cron expression
+        if (!CronExpression.TryParse(cronExpression, CronFormat.Standard, out var cron))
+        {
+            return null; // Invalid cron expression
+        }
+        
+        // Validate and get timezone
+        var tzdb = DateTimeZoneProviders.Tzdb;
+        var tz = tzdb.GetZoneOrNull(timeZone);
+        if (tz == null)
+        {
+            return null; // Invalid timezone
+        }
+        
+        return GetNextOccurrence(cron, tz, fromUtc);
+    }
+    
+    /// <summary>
+    /// Internal overload that accepts pre-validated inputs to avoid re-parsing and exceptions.
+    /// </summary>
+    private DateTime? GetNextOccurrence(CronExpression cron, DateTimeZone tz, DateTime? fromUtc = null)
+    {
         var from = fromUtc ?? DateTime.UtcNow;
         
         // Convert UTC to user timezone
-        var tzdb = DateTimeZoneProviders.Tzdb;
-        var tz = tzdb[timeZone];
         var fromInUserTz = Instant.FromDateTimeUtc(from).InZone(tz).LocalDateTime;
         
         // Get next occurrence in user timezone (Cronos works with DateTimeOffset)
